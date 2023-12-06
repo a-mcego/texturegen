@@ -55,9 +55,10 @@ def realimg():
         stack = []
         for s_i in range(STACKING_SIZE):
             actualp = pshape
-            y = ys[b_i,s_i]%(real_img.shape[1]-actualp[0])
-            x = xs[b_i,s_i]%(real_img.shape[2]-actualp[1])
+            y = ys[b_i,s_i]%(real_img.shape[2]-actualp[0])
+            x = xs[b_i,s_i]%(real_img.shape[3]-actualp[1])
             patch = real_img[
+                :,
                 :,
                 y:y+actualp[0], 
                 x:x+actualp[1]
