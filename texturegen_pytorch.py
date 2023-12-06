@@ -38,36 +38,26 @@ else:
     imgfilename = f"inputs/{SRC_IMAGE}"
 
 real_img = Image.open(imgfilename)
-real_img = transforms.ToTensor()(real_img).unsqueeze(0)
+real_img = transforms.ToTensor()(real_img).unsqueeze(0).to(device)
 print(real_img.shape, real_img.dtype)
 
 def realimg():
-    pshape = torch.tensor(PATCH_SHAPE)
-    
-    multiplier = torch.randint(1, 5, (1,)).item()
-    
-    ys = torch.randint(0, 1000000000, (BATCH_SIZE, STACKING_SIZE))
-    xs = torch.randint(0, 1000000000, (BATCH_SIZE, STACKING_SIZE))
+    ys = torch.randint(0, real_img.shape[2] - PATCH_SHAPE[0], (BATCH_SIZE*STACKING_SIZE,))
+    xs = torch.randint(0, real_img.shape[3] - PATCH_SHAPE[1], (BATCH_SIZE*STACKING_SIZE,))
     
     out = []
-    for b_i in range(BATCH_SIZE):
-        stack = []
-        for s_i in range(STACKING_SIZE):
-            actualp = pshape# * (s_i + 1)
-            y = ys[b_i, s_i] % (real_img.shape[2] - actualp[0])
-            x = xs[b_i, s_i] % (real_img.shape[3] - actualp[1])
-            patch = real_img[:, :, y:y + actualp[0], x:x + actualp[1]]
-            #print("patch: " + str(patch.shape) + " from real_img: " + str(real_img.shape))
-            stack.append(patch)
-        out.append(torch.cat(stack, dim=1))
+    for bs_i in range(BATCH_SIZE*STACKING_SIZE):
+        patch = real_img[:, :, ys[bs_i]:ys[bs_i] + PATCH_SHAPE[0], xs[bs_i]:xs[bs_i] + PATCH_SHAPE[1]]
+        out.append(patch)
     
     ret = torch.cat(out, dim=0).to(device)
+    ret = ret.view(BATCH_SIZE, STACKING_SIZE * 3, PATCH_SHAPE[0], PATCH_SHAPE[1])
     return ret
 
 class FakeImg(nn.Module):
     def __init__(self):
         super(FakeImg, self).__init__()
-        self.img = nn.Parameter(torch.zeros(1, 3, OUTPUT_SHAPE[0], OUTPUT_SHAPE[1]))
+        self.img = nn.Parameter(torch.zeros(1, 3, OUTPUT_SHAPE[0], OUTPUT_SHAPE[1]).to(device))
 
     def forward(self, _):
         processed_img = self.img
@@ -78,16 +68,11 @@ class FakeImg(nn.Module):
         xs = torch.randint(0, OUTPUT_SHAPE[1], (BATCH_SIZE * STACKING_SIZE,))
         
         out = []
-        for b_i in range(BATCH_SIZE):
-            stack = []
-            for s_i in range(STACKING_SIZE):
-                bs_i = b_i * STACKING_SIZE + s_i
-                patch = processed_img[:, :, ys[bs_i]:ys[bs_i] + PATCH_SHAPE[0], xs[bs_i]:xs[bs_i] + PATCH_SHAPE[1]]
-                stack.append(patch.unsqueeze(0))
-            out.append(torch.cat(stack, dim=1))
+        for bs_i in range(BATCH_SIZE*STACKING_SIZE):
+            patch = processed_img[:, :, ys[bs_i]:ys[bs_i] + PATCH_SHAPE[0], xs[bs_i]:xs[bs_i] + PATCH_SHAPE[1]]
+            out.append(patch)
         
-        ret = torch.cat(out, dim=0)
-        ret = ret.view(BATCH_SIZE, STACKING_SIZE * 3, PATCH_SHAPE[0], PATCH_SHAPE[1])
+        ret = torch.cat(out, dim=0).view(BATCH_SIZE, STACKING_SIZE * 3, PATCH_SHAPE[0], PATCH_SHAPE[1])
         return ret
 
 class Discriminator(nn.Module):
