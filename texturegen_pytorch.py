@@ -50,7 +50,7 @@ def realimg():
         patch = real_img[:, :, ys[bs_i]:ys[bs_i] + PATCH_SHAPE[0], xs[bs_i]:xs[bs_i] + PATCH_SHAPE[1]]
         out.append(patch)
     
-    ret = torch.cat(out, dim=0).to(device)
+    ret = torch.cat(out, dim=0)
     ret = ret.view(BATCH_SIZE, STACKING_SIZE * 3, PATCH_SHAPE[0], PATCH_SHAPE[1])
     return ret
 
@@ -59,7 +59,7 @@ class FakeImg(nn.Module):
         super(FakeImg, self).__init__()
         self.img = nn.Parameter(torch.zeros(1, 3, OUTPUT_SHAPE[0], OUTPUT_SHAPE[1]).to(device))
 
-    def forward(self, _):
+    def forward(self):
         processed_img = self.img
         processed_img = torch.cat([processed_img, processed_img[:, :, :PATCH_SHAPE[0] - 1, :]], dim=2)
         processed_img = torch.cat([processed_img, processed_img[:, :, :, :PATCH_SHAPE[1] - 1]], dim=3)
@@ -121,9 +121,13 @@ optimizer_g = optim.Adam(fakeimg.parameters(), lr=LEARNING_RATE_G, amsgrad=True)
 
 iters = 0
 
-def do_thing():
-    fakes = d(fakeimg(1))
-    reals = d(realimg())
+def do_thing_D():
+    with torch.no_grad():
+        fi = fakeimg()
+        ri = realimg()
+
+    fakes = d(fi)
+    reals = d(ri)
     
     reals = reals.unsqueeze(0)
     fakes = fakes.unsqueeze(1)
@@ -132,14 +136,25 @@ def do_thing():
 def train_D():
     # train discriminator
     optimizer_d.zero_grad()
-    loss = torch.nn.functional.softplus(do_thing())
+    loss = torch.nn.functional.softplus(do_thing_D())
     loss.mean().backward()
     optimizer_d.step()
+
+def do_thing_G():
+    with torch.no_grad():
+        ri = realimg()
+
+    fakes = d(fakeimg())
+    reals = d(ri)
+    
+    reals = reals.unsqueeze(0)
+    fakes = fakes.unsqueeze(1)
+    return reals - fakes
 
 def train_G():
     # train generator
     optimizer_g.zero_grad()
-    loss = torch.nn.functional.relu(-do_thing())
+    loss = torch.nn.functional.relu(do_thing_G())
     loss.mean().backward()
     optimizer_g.step()
 
